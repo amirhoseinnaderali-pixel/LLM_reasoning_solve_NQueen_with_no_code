@@ -1,0 +1,6 @@
+model: llama3.2:1b
+temperature: 0.0
+n_values: [8, 12, 20, 30]
+rounds: [1, 2, 3, 5]
+max_steps: 30
+trials_per_setting: 5
