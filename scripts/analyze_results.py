@@ -8,8 +8,10 @@ def find_real_run(input_path:Path)->Path:
     candidates=[]
     for p in input_path.glob("*/run_metadata.json"):
         meta=json.loads(p.read_text(encoding="utf-8"))
-        if meta.get("run_type")=="real" and meta.get("status")=="completed": candidates.append((meta.get("created_at_utc",""),p.parent))
-    if not candidates: raise SystemExit("no completed real EXP-001 run found; mock/smoke artifacts are not scientific results")
+        if meta.get("run_type")=="real" and meta.get("status")=="completed":
+            candidates.append((meta.get("created_at_utc",""),p.parent))
+    if not candidates:
+        raise SystemExit("no completed real EXP-001 run found; mock/smoke artifacts are not scientific results")
     return sorted(candidates,reverse=True)[0][1]
 
 def summarize(rows):
@@ -17,7 +19,10 @@ def summarize(rows):
     for r in rows: groups[r["condition"]].append(r)
     out={}
     for condition in ("R1","R2","R4","R8"):
-        data=groups.get(condition,[]); evaluated=[r for r in data if r["evaluated"]]
+        data=groups.get(condition,[])
+        evaluated=[r for r in data if r["evaluated"]]
+        if len(evaluated) != 300:
+            raise SystemExit(f"{condition} is incomplete: expected 300 evaluated task-seed units, found {len(evaluated)}")
         successes=[r for r in evaluated if r["task_success"]]
         conflicts=[r["final_conflicts"] for r in evaluated if r["final_conflicts"] is not None]
         latencies=[r["wall_clock_seconds"] for r in evaluated]
@@ -25,22 +30,24 @@ def summarize(rows):
         calls=[r["model_calls"] for r in data]
         out[condition]={
             "evaluated":len(evaluated),"successful":len(successes),
-            "success_rate":len(successes)/len(evaluated) if evaluated else None,
+            "success_rate":len(successes)/len(evaluated),
             "mean_final_conflicts":statistics.mean(conflicts) if conflicts else None,
             "median_final_conflicts":statistics.median(conflicts) if conflicts else None,
-            "trace_validity_rate":len(valid)/len(evaluated) if evaluated else None,
-            "malformed_or_invalid_rate":1-len(valid)/len(evaluated) if evaluated else None,
-            "mean_model_calls":statistics.mean(calls) if calls else None,
-            "mean_wall_clock_seconds":statistics.mean(latencies) if latencies else None,
-            "median_wall_clock_seconds":statistics.median(latencies) if latencies else None,
+            "trace_validity_rate":len(valid)/len(evaluated),
+            "malformed_or_invalid_rate":1-len(valid)/len(evaluated),
+            "mean_model_calls":statistics.mean(calls),
+            "mean_wall_clock_seconds":statistics.mean(latencies),
+            "median_wall_clock_seconds":statistics.median(latencies),
         }
     return out
 
 def paired(rows,baseline,candidate):
-    idx={(r["task_id"],int(r["seed"]),r["condition"]):r for r in rows}; diffs=[]
+    idx={(r["task_id"],int(r["seed"]),r["condition"]):r for r in rows}
+    diffs=[]
     for r in rows:
         if r["condition"]!=baseline: continue
-        key=(r["task_id"],int(r["seed"])); a=idx.get((*key,baseline)); b=idx.get((*key,candidate))
+        key=(r["task_id"],int(r["seed"]))
+        a=idx.get((*key,baseline)); b=idx.get((*key,candidate))
         if a and b and a["evaluated"] and b["evaluated"]:
             diffs.append(int(bool(b["task_success"]))-int(bool(a["task_success"])))
     return {"comparison":f"{baseline}_vs_{candidate}","paired_units":len(diffs),
@@ -58,15 +65,22 @@ def make_plots(summary,output):
     ]
     for filename,values,ylabel in plots:
         fig=plt.figure(); ax=fig.gca(); ax.plot(x,values,marker="o")
-        ax.set_xlabel("Sequential refinement rounds"); ax.set_ylabel(ylabel); fig.savefig(output/filename,dpi=150,bbox_inches="tight"); plt.close(fig)
+        ax.set_xlabel("Sequential refinement rounds"); ax.set_ylabel(ylabel)
+        fig.savefig(output/filename,dpi=150,bbox_inches="tight"); plt.close(fig)
 
 def main()->int:
     parser=argparse.ArgumentParser(); parser.add_argument("--input",required=True); args=parser.parse_args()
-    run=find_real_run(Path(args.input)); rows=[json.loads(x) for x in (run/"records.jsonl").read_text().splitlines() if x.strip()]
+    run=find_real_run(Path(args.input))
+    rows=[json.loads(x) for x in (run/"records.jsonl").read_text().splitlines() if x.strip()]
+    if len(rows)!=1200:
+        raise SystemExit(f"incomplete real run: expected 1200 records, found {len(rows)}")
     summary=summarize(rows)
     paired_out={c:paired(rows,"R1",c) for c in ("R2","R4","R8")}
     output=run/"analysis"; output.mkdir(exist_ok=False)
     (output/"summary.json").write_text(json.dumps(summary,indent=2)+"\n")
     (output/"paired_comparisons.json").write_text(json.dumps(paired_out,indent=2)+"\n")
-    make_plots(summary,output); print(f"analysis={output}"); return 0
+    make_plots(summary,output)
+    print(f"analysis={output}")
+    return 0
+
 if __name__=="__main__": raise SystemExit(main())

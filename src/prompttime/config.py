@@ -6,7 +6,8 @@ from typing import Any
 import yaml
 from .prompts import PROMPT_SHA256,PROMPT_VERSION
 
-class ConfigError(ValueError): pass
+class ConfigError(ValueError):
+    pass
 
 def sha256_file(path:str|Path)->str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -20,11 +21,16 @@ def load_config(path:str|Path)->dict[str,Any]:
     if data["experiment_id"]!="EXP-001": raise ConfigError("unexpected experiment_id")
     if data["model"]["provider"]!="ollama": raise ConfigError("EXP-001 provider must be ollama")
     if data["model"]["model_id"]!="llama3.2:1b": raise ConfigError("EXP-001 model must remain llama3.2:1b")
-    if data["refinement_rounds"]!=[1,2,4,8]: raise ConfigError("refinement_rounds must be [1,2,4,8]")
-    if data["seeds"]!=[42,43,44]: raise ConfigError("seeds must be [42,43,44]")
-    if data["prompt"]["version"]!=PROMPT_VERSION: raise ConfigError("prompt version mismatch")
-    if data["prompt"]["sha256"]!=PROMPT_SHA256: raise ConfigError("prompt hash mismatch")
-    if data["benchmark"]["task_count"]!=100: raise ConfigError("benchmark task_count must be 100")
+    if data["model"]["temperature"] != 0.2: raise ConfigError("temperature is not frozen at 0.2")
+    if data["model"]["top_p"] != 0.9: raise ConfigError("top_p is not frozen at 0.9")
+    if data["model"]["max_output_tokens"] != 2048: raise ConfigError("max_output_tokens is not frozen at 2048")
+    if data["generation"]["max_trace_steps"] != 20: raise ConfigError("max_trace_steps must remain 20")
+    if data["generation"]["early_stopping"] is not False: raise ConfigError("early_stopping must be false")
+    if data["refinement_rounds"] != [1,2,4,8]: raise ConfigError("refinement_rounds must be [1,2,4,8]")
+    if data["seeds"] != [42,43,44]: raise ConfigError("seeds must be [42,43,44]")
+    if data["prompt"]["version"] != PROMPT_VERSION: raise ConfigError("prompt version mismatch")
+    if data["prompt"]["sha256"] != PROMPT_SHA256: raise ConfigError("prompt hash mismatch")
+    if data["benchmark"]["task_count"] != 100: raise ConfigError("benchmark task_count must be 100")
     return data
 
 def canonical_config_sha256(config:dict[str,Any])->str:
