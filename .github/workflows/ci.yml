@@ -1,0 +1,35 @@
+name: EXP-001 CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile
+        run: python -m compileall -q src scripts tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Benchmark integrity
+        run: python -c "import sys; sys.path.insert(0,'src'); from prompttime.benchmark import load_benchmark,validate_benchmark; b=load_benchmark('benchmarks/manifests/EXP-001-v1.json'); e=validate_benchmark(b); assert not e, e"
+      - name: Frozen config validation
+        run: python -c "import sys; sys.path.insert(0,'src'); from prompttime.config import load_config; load_config('configs/experiments/EXP-001.yaml')"
+      - name: Deterministic validation mode
+        run: python scripts/run_experiment.py --mode validation
+      - name: Validate mock artifacts
+        shell: bash
+        run: |
+          RUN_DIR=$(find results/validation -mindepth 1 -maxdepth 1 -type d | head -n 1)
+          python scripts/validate_results.py --input "$RUN_DIR"

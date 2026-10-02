@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+results/EXP-001/*
+results/validation/*
+results/smoke/*
+!results/.gitkeep

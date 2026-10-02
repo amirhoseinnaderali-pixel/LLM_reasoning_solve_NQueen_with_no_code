@@ -1,75 +1,48 @@
-## PromptTime-Search: N-Queens Reasoner
+# PromptTime-Search: N-Queens Reasoner
 
-A tiny, iterative prompting loop that turns a small local model into a step-by-step searcher at prompt time. It re-feeds the previous response to refine the next one, demonstrating test-time scaling of reasoning without changing weights.
+This repository contains the historical prompt-time N-Queens prototype and a separate controlled research instrument for EXP-001.
 
-### What this repo shows
-- **Prompt-time scaling**: Better reasoning by looping the model with its own previous output as context.
-- **Deterministic search prompt**: A strict output format and greedy swap heuristic for n-Queens.
-- **Few-shot + refinement**: A small model + examples + iterative self-refinement yields visible search behavior.
+## Historical prototype
 
----
+The original script is preserved as `reasoning LLM _solve Nqueen problem.py`. It is historical/demo material. Its original examples and prompting behavior are not used by the controlled experiment.
 
-### Requirements
-- Python 3.9+
-- [Ollama](https://ollama.com) installed and running
-- Pull a small model (default used here):
+## EXP-001
 
-```bash
-ollama pull llama3.2:1b
-```
+**Research question:** Does increasing inference-time computation through sequential prompt-time self-refinement improve the probability of producing an objectively correct N-Queens solution while keeping the underlying model and task fixed?
 
-- Python deps:
+Controlled path:
+
+`task → generation → previous output re-fed → refinement → final candidate → independent verifier`
+
+Conditions: R1, R2, R4 and R8 sequential calls; same frozen task, model, generation settings and seed set.
+
+### Checks
 
 ```bash
-pip install langchain-ollama langchain-core
+python -m unittest discover -s tests
+python scripts/run_experiment.py --mode validation
+python scripts/validate_results.py --input results/validation/<run-id>
+python scripts/preflight.py
 ```
 
-### Run
+Validation mode uses only a deterministic mock adapter and is not a scientific result.
+
+### Real execution
 
 ```bash
-python o9.py
+python scripts/run_experiment.py --mode smoke
+python scripts/run_experiment.py --mode real
 ```
 
-You should see a multi-line trace like:
+Real execution requires the exact Ollama model in the frozen configuration and a passing preflight. No early stopping is used.
 
-```text
-Initial state for n=20: [...], Conflicts: C0
-Step 1: State after swap: [...], Conflicts: C1
-...
-Final state for n=20: [...], Conflicts: 0
-```
+### Structure
 
-### How it works
-- The prompt defines a strict format and a deterministic greedy move policy (swap columns that most reduce conflicts; tie-break by smallest i then j).
-- `o9.py` runs the chain twice: the second call receives the first output under `previous`, nudging the model to continue/refine the same trajectory.
-- This loop can be extended to more than two rounds to further stabilize/improve results.
+- `src/prompttime/`: controlled implementation
+- `configs/experiments/EXP-001.yaml`: frozen configuration
+- `benchmarks/manifests/EXP-001-v1.json`: frozen benchmark
+- `scripts/`: generation, preflight, execution, validation and analysis
+- `tests/`: model-independent tests
+- `docs/`: methodology, benchmark, measurement and scientific audit
 
-### Iterating more rounds
-Minimal sketch to extend the loop:
-
-```python
-from o9 import generate_n_queens_trace
-
-previous = ""
-for _ in range(5):
-    res = generate_n_queens_trace(n=20, max_steps=30, previous=previous)
-    previous = res.content
-print(previous)
-```
-
-### Tuning knobs
-- **Model**: change `model="llama3.2:1b"` in `o9.py` to any local Ollama model you prefer.
-- **Problem size**: switch `n` to larger values to stress test search behavior.
-- **Budget**: change `max_steps` to allow longer traces.
-- **Examples**: enrich `EXAMPLES` to guide formatting and behavior.
-
-### Note about current script
-In `generate_n_queens_trace`, the `n` and `max_steps` arguments are currently hard-coded to `20` in the payload. If you want the function parameters to take effect, replace those with the function arguments.
-
-### Why n-Queens?
-It’s discrete, structured, and admits a verifiable, non-ambiguous trace. That makes prompt-time refinement clearly visible and easy to evaluate.
-
-### License
-MIT
-
-
+Runtime artifacts are written under unique run directories; existing runs are never overwritten.

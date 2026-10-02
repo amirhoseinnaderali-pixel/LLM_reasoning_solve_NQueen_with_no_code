@@ -1,0 +1,36 @@
+experiment_id: EXP-001
+status: NOT_EXECUTED
+
+model:
+  provider: ollama
+  model_id: llama3.2:1b
+  base_url: http://127.0.0.1:11434
+  temperature: 0.2
+  top_p: 0.9
+  seed_policy: fixed_per_condition_and_round
+  max_output_tokens: 2048
+  timeout_seconds: 120
+
+refinement_rounds:
+  - 1
+  - 2
+  - 4
+  - 8
+
+seeds:
+  - 42
+  - 43
+  - 44
+
+generation:
+  max_trace_steps: 20
+  early_stopping: false
+
+prompt:
+  version: EXP-001-PROMPT-v1
+  sha256: b8e9e2a69c7752f20c717d55e27a77d7a37aa84d8e9993be74abdc07bd96b2c3
+
+benchmark:
+  manifest: benchmarks/manifests/EXP-001-v1.json
+  task_count: 100
+  sha256: 4d4bd632d61981e272d813cbf2d9415110ca41149cf24635339e58f2408cd155
